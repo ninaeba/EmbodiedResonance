@@ -24,7 +24,7 @@ FS_ECG   = 500                          # Hz, raw ECG
 BP_ECG   = (0.5, 40)                    # band‑pass (Butter 4‑th)
 
 TIME_WIN, TIME_STEP = 60.0, 1.0       # s  (HR, SDNN, RMSSD)
-FREQ_WIN, FREQ_STEP = 300.0, 30.0       # s  (VLF/LF/HF)
+FREQ_WIN, FREQ_STEP = 180.0, 30.0       # s  (VLF/LF/HF)
 FGRID = np.arange(0.003, 0.401, 0.001)  # Hz
 
 BANDS = dict(VLF=(.003, .04), LF=(.04, .15), HF=(.15, .40))
@@ -117,9 +117,9 @@ class HRV:
         if tdf.empty and fdf.empty:
             return pd.DataFrame()
 
-        # align on 1‑second grid
-        grid_start = max(tdf.t.min(), fdf.t.min())
-        grid_end   = min(tdf.t.max(), fdf.t.max())
+        # align on 1-second grid
+        grid_start = min(tdf.t.min(), fdf.t.min())
+        grid_end   = max(tdf.t.max(), fdf.t.max())
         grid = np.arange(grid_start, grid_end+1, 1.0)
 
         out = pd.DataFrame({'t': grid})
@@ -134,18 +134,31 @@ class HRV:
 COLORS = dict(HR='#d62728', SDNN='#2ca02c', RMSSD='#ff7f0e',
               VLF='#1f77b4', LF='#17becf', HF='#bcbd22', LF_HF='#7f7f7f')
 
-def plot(ecg_f, hrv_df, fs=FS_ECG, title="HRV (Lomb)"):
-    t = np.arange(ecg_f.size)/fs
-    fig = go.Figure()
+def plot(ecg_f, hrv_df, fs=FS_ECG, title="HRV analysis"):
+    t = np.arange(ecg_f.size) / fs
+    fig = go.Figure()                    
+
+    # --- signals ---
     fig.add_trace(go.Scatter(x=t, y=ecg_f, name='ECG', yaxis='y1',
                              line=dict(color='steelblue')))
-
     for col in hrv_df.columns.drop('t'):
         fig.add_trace(go.Scatter(x=hrv_df.t, y=hrv_df[col], name=col,
-                                 yaxis='y2', line=dict(color=COLORS.get(col,'grey'))))
+                                 yaxis='y2', line=dict(color=COLORS.get(col, 'grey'))))
 
+    # --- phases ---
+    fig.add_vrect(x0=0,    x1=360,  fillcolor='rgba(173,216,230,0.25)',
+                  layer='below', line_width=0,
+                  annotation_text='REST',    annotation_position='top left')
+    fig.add_vrect(x0=360,  x1=1080, fillcolor='rgba(255,182,193,0.25)',
+                  layer='below', line_width=0,
+                  annotation_text='STRESS',  annotation_position='top left')
+    fig.add_vrect(x0=1080, x1=1440, fillcolor='rgba(173,216,230,0.25)',
+                  layer='below', line_width=0,
+                  annotation_text='RECOVER', annotation_position='top left')
+
+    # ------
     fig.update_layout(title=title, height=750, hovermode='x unified',
-        xaxis=dict(title='Time (s)', rangeslider=dict(visible=True, thickness=.05)),
+        xaxis=dict(title='Time (s)', rangeslider=dict(visible=True, thickness=.05)),
         yaxis=dict(title='ECG', side='left'),
         yaxis2=dict(title='HRV', overlaying='y', side='right', showgrid=False),
         legend=dict(orientation='h', x=.5, y=1.04, xanchor='center'))
